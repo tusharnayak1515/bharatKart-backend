@@ -47,6 +47,16 @@ const MerchantSchema = new Schema({
     ],
     soldproducts: [
         {
+            location: {
+                pincode: {
+                    type: Number,
+                    required: true
+                },
+                address: {
+                    type: String,
+                    required: true
+                }
+            },
             user: {
                 type: Schema.Types.ObjectId,
                 ref: 'user'

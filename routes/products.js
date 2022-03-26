@@ -60,12 +60,17 @@ router.post("/addproduct", [
     }
 });
 
-// ROUTE 2: Buy products using PUT. Require Login.
-router.put("/buyproduct/:id", [
+// ROUTE 2: Add products in cart using PUT. Require Login.
+router.put("/addtocart/:id", [
     body("qty", "Quantity can be minimum 1!").exists()
 ], fetchUser, async (req, res) => {
     let success = false;
-    const id = req.params.id;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        success = false;
+        return res.json({ success, error: errors.array()[0].msg, status: 400 })
+    }
+    const productId = req.params.id;
     const { qty } = req.body;
     try {
         const userId = req.user.id;
@@ -76,8 +81,39 @@ router.put("/buyproduct/:id", [
             return res.json({ success, error: "Invalid Request", status: 400 })
         }
 
-        const product = await Product.findById(id);
-        // console.log(product.merchant.toString());
+        const product = await Product.findById(productId);
+
+        user = await User.findByIdAndUpdate(userId, { $push: { cart: { product, quantity: qty } } });
+        success = true;
+        return res.json({ success, product, user, status: 200 });
+    } catch (error) {
+        success = false;
+        res.send({ success, error: error.message, status: 500 });
+    }
+});
+
+// ROUTE 3: Buy products using PUT. Require Login.
+router.put("/buyproduct/:id", [
+    body("qty", "Quantity can be minimum 1!").exists()
+], fetchUser, async (req, res) => {
+    let success = false;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        success = false;
+        return res.json({ success, error: errors.array()[0].msg, status: 400 })
+    }
+    const productId = req.params.id;
+    const { qty } = req.body;
+    try {
+        const userId = req.user.id;
+        let user = await User.findById(userId);
+
+        if (!user) {
+            success = false;
+            return res.json({ success, error: "Invalid Request", status: 400 })
+        }
+
+        const product = await Product.findById(productId);
 
         let merchant = await Merchant.findById(product.merchant.toString());
 
@@ -85,7 +121,7 @@ router.put("/buyproduct/:id", [
         let merchantEarning = 0;
         
         for(let i = 0;i<merchant.products.length; i++) {
-            if(merchant.products[i].product.toString() === id) {
+            if(merchant.products[i].product.toString() === productId) {
                 if(qty > merchant.products[i].quantity) {
                     success = false;
                     return res.json({ success, error: "Invalid Buy Request", status: 400 });
@@ -95,11 +131,12 @@ router.put("/buyproduct/:id", [
             }
         }
 
-        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $pull: { products: { product: id } } });
+        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $pull: { products: { product: productId } } });
         merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $push: { products: { product, quantity: productQuantity } } });
-        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $push: { soldproducts: { user: userId, product, quantity: qty } } });
+        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $push: { soldproducts: { location: user.location, user: userId, product, quantity: qty } } });
         merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { earnedmoney: merchantEarning });
         user = await User.findByIdAndUpdate(userId, { $push: { boughtproducts: { merchant, product, quantity: qty } } });
+        user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product, quantity: qty } } });
         success = true;
         return res.json({ success, product, user, merchant, status: 200 });
     } catch (error) {
