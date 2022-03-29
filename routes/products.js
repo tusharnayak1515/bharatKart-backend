@@ -14,7 +14,20 @@ const router = express.Router();
 const secret = process.env.JWT_SECRET;
 
 
-// ROUTE 1: Add products using POST. Require Login.
+// ROUTE 1: Fetch all products using GET. Doesn't Require Login.
+router.get("/products", async (req, res) => {
+    let success = false;
+    try {
+        const products = await Product.find();
+        success = true;
+        res.send({ success, products, status: 200 });
+    } catch (error) {
+        success = false;
+        res.send({ success, error: error.message, status: 500 });
+    }
+});
+
+// ROUTE 2: Add products using POST. Require Login.
 router.post("/addproduct", [
     body("name", "Name must be more than 4 characters").isLength({ min: 4 }),
     body("description", "Description must be more than 10 characters").isLength({ min: 10 }),
@@ -60,7 +73,7 @@ router.post("/addproduct", [
     }
 });
 
-// ROUTE 2: Add products in cart using PUT. Require Login.
+// ROUTE 3: Add products in cart using PUT. Require Login.
 router.put("/addtocart/:id", [
     body("qty", "Quantity can be minimum 1!").exists()
 ], fetchUser, async (req, res) => {
@@ -92,7 +105,7 @@ router.put("/addtocart/:id", [
     }
 });
 
-// ROUTE 3: Buy products using PUT. Require Login.
+// ROUTE 4: Buy products using PUT. Require Login.
 router.put("/buyproduct/:id", [
     body("qty", "Quantity can be minimum 1!").exists()
 ], fetchUser, async (req, res) => {
