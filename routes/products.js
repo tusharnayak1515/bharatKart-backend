@@ -232,9 +232,6 @@ router.put("/removefromcart/:id", [
             cart.push(await Product.findById(user.cart[i].product.toString()));
         }
 
-        // console.log("user: ",user);
-        // console.log("cart: ",cart);
-
         const myprofile = {
             profile: user
         }
@@ -248,8 +245,8 @@ router.put("/removefromcart/:id", [
 });
 
 // ROUTE 5: Buy products using PUT. Require Login.
-router.put("/buyproduct/:id", [
-    body("qty", "Quantity can be minimum 1!").exists()
+router.put("/buyproduct", [
+    body("cart", "Your cart is empty!").isArray().notEmpty()
 ], fetchUser, async (req, res) => {
     let success = false;
     const errors = validationResult(req);
@@ -257,75 +254,85 @@ router.put("/buyproduct/:id", [
         success = false;
         return res.json({ success, error: errors.array()[0].msg, status: 400 })
     }
-    const productId = req.params.id;
-    const { qty } = req.body;
+    const cart = req.body.cart;
+    const userId = req.user.id;
+    let product;
+    let merchant;
+    let user = await User.findById(userId);
+    if (!user) {
+        success = false;
+        return res.json({ success, error: "Invalid Request", status: 400 })
+    }
+
     try {
-        const userId = req.user.id;
-        let user = await User.findById(userId);
-
-        if (!user) {
+        if(cart.length === 0) {
             success = false;
-            return res.json({ success, error: "Invalid Request", status: 400 })
+            return res.json({success, error: "Your cart is empty!", status: 400})
         }
 
-        const product = await Product.findById(productId);
+        for(let i=0; i<cart.length; i++) {
+            let productId = cart[i].product.toString();
 
-        if (!product) {
-            success = false;
-            return res.json({ success, error: "Product Not Found", status: 404 });
-        }
-
-        let merchant = await Merchant.findById(product.merchant.toString());
-
-        let productQuantity = 0;
-        let merchantEarning = 0;
-
-        for (let i = 0; i < merchant.products.length; i++) {
-            if (merchant.products[i].product.toString() === productId) {
-                if (qty > merchant.products[i].quantity) {
-                    success = false;
-                    return res.json({ success, error: "Invalid Buy Request", status: 400 });
-                }
-                productQuantity = merchant.products[i].quantity - qty;
-                merchantEarning = merchant.earnedmoney + (product.price * qty);
+            product = await Product.findById(productId);
+            if (!product) {
+                success = false;
+                return res.json({ success, error: "Product Not Found", status: 404 });
             }
-        }
 
-        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $pull: { products: { product: productId } } });
-        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $push: { products: { product, quantity: productQuantity } } });
-        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { $push: { soldproducts: { location: user.location, user: userId, product, quantity: qty } } });
-        merchant = await Merchant.findByIdAndUpdate(product.merchant.toString(), { earnedmoney: merchantEarning });
-        user = await User.findByIdAndUpdate(userId, { $push: { boughtproducts: { merchant, product, quantity: qty } } });
+            merchant = await Merchant.findById(product.merchant.merchantId.toString());
+    
+            let productQuantity = 0;
+            let merchantEarning = 0;
 
-        let latestqty = qty;
-        for (let i = 0; i < user.cart.length; i++) {
-            if (user.cart[i].product.toString() === productId) {
-                if (user.cart[i].quantity < qty) {
-                    success = false;
-                    return res.json({ success, error: "Invalid Request!", status: 400 });
-                }
-                else if (user.cart[i].quantity === qty) {
-                    user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product, quantity } } });
-                }
-                else {
-                    latestqty = user.cart[i].quantity - qty;
-                    user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product, quantity } } });
-                    user = await User.findByIdAndUpdate(userId, { $push: { cart: { product, quantity: latestqty } } });
+            for (let j = 0; j < merchant.products.length; j++) {
+                if (merchant.products[j].product.toString() === productId) {
+                    if (cart[i].quantity > merchant.products[j].quantity) {
+                        success = false;
+                        return res.json({ success, error: "The product stock is less than your requirement!", status: 400 });
+                    }
+                    productQuantity = merchant.products[j].quantity - cart[i].quantity;
+                    merchantEarning = merchant.earnedmoney + (product.price * cart[i].quantity);
                 }
             }
+    
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $pull: { products: { product: productId } } }, {new: true});
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $push: { products: { product: productId, quantity: productQuantity } } }, {new: true});
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $push: { soldproducts: { location: user.location, user: userId, product: productId, quantity: cart[i].quantity } } }, {new: true} );
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { earnedmoney: merchantEarning }, {new: true});
+            user = await User.findByIdAndUpdate(userId, { $push: { boughtproducts: { merchant: product.merchant.merchantId.toString(), product: productId, quantity: cart[i].quantity } } }, {new: true});
+    
+            // let latestqty = cart[i].quantity;
+            for (let k = 0; k < user.cart.length; k++) {
+                if (user.cart[k].product.toString() === productId) {
+                    if (user.cart[k].quantity < cart[i].quantity) {
+                        success = false;
+                        return res.json({ success, error: "Invalid Request!", status: 400 });
+                    }
+                    else if (user.cart[k].quantity === cart[i].quantity) {
+                        user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product: productId} } }, {new: true});
+                    }
+                    // else {
+                    //     latestqty = user.cart[k].quantity - cart[i].quantity;
+                    //     user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product, quantity } } });
+                    //     user = await User.findByIdAndUpdate(userId, { $push: { cart: { product, quantity: latestqty } } });
+                    // }
+                }
+            }
+            
         }
 
-        let cart = [];
+        let mycart = [];
         for (let i = 0; i < user.cart.length; i++) {
-            cart.push(await Product.findById(user.cart.product.toString()));
+            mycart.push(await Product.findById(user.cart[i].product.toString()));
         }
 
         const myprofile = {
             profile: user
         }
-
+        
         success = true;
-        return res.json({ success, product, myprofile, cart, merchant, status: 200 });
+        return res.json({ success, product, myprofile, mycart, merchant, status: 200 });
+
     } catch (error) {
         success = false;
         res.send({ success, error: error.message, status: 500 });
