@@ -19,15 +19,42 @@ const ProductSchema = new Schema({
         type: Number,
         required: true
     },
+    review: [
+        {
+            ratings: {
+                type: Number,
+                default: 0
+            },
+            comments: {
+                type: String,
+                default: ""
+            },
+            user: {
+                username: {
+                    type: String,
+                    default: ""
+                },
+                userId: {
+                    type: Schema.Types.ObjectId,
+                    ref: 'user'
+                }
+            }
+        }
+    ],
     date: {
         type: Date,
         default: Date.now
     },
     merchant: {
-        type: Schema.Types.ObjectId,
-        ref: 'merchant'
+        merchantName: {
+            type: String
+        },
+        merchantId: {
+            type: Schema.Types.ObjectId,
+            ref: 'merchant'
+        }
     }
 });
 
-const Product = mongoose.model('product',ProductSchema);
+const Product = mongoose.model('product', ProductSchema);
 module.exports = Product;

@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fetchUser = require("../middlewares/fetchUser");
 const User = require("../models/User");
+const Product = require("../models/Products");
 
 const router = express.Router();
 
@@ -15,7 +16,7 @@ router.post(
   [
     body("name", "Name cannot be less than 5 characters!").isLength({ min: 5 }),
     body("email", "Enter a valid email!").isEmail(),
-    body("phone", "Enter a valid phone number!").isLength({ min: 10 }),
+    body("phone", "Enter a valid phone number!").isLength({ min: 10, max: 10 }),
     body("password", "Enter a valid password!")
       .isLength({ min: 8 })
       .matches(/^[a-zA-Z0-9!@#$%^&*]{6,16}$/),
@@ -65,15 +66,29 @@ router.post(
           address: address,
         },
       });
-      const user = newUser.save();
+
+      const user = await newUser.save();
       const data = {
         user: {
           id: user.id
         },
       };
+
       const userToken = jwt.sign(data, secret);
+
+      let orders = [];
+      for (let i = 0; i < user.boughtproducts.length; i++) {
+        let item = await Product.findById(user.boughtproducts[i].product.toString());
+        orders.push(item);
+      }
+
+      const myprofile = {
+        profile: user,
+        orders: orders
+      }
+
       success = true;
-      return res.json({ success, user, userToken, status: 200 });
+      return res.json({ success, myprofile, userToken, status: 200 });
     } catch (error) {
       res.send({ error: "Internal Server Error", status: 500 });
     }
@@ -111,28 +126,61 @@ router.post(
         success = false;
         return res.json({ success, error: "Wrong Credentials!", status: 400 });
       }
+
       const data = {
         user: {
           id: user.id,
         },
       };
+
       const userToken = jwt.sign(data, secret);
+
+      let cart = [];
+      if (user.cart.length !== 0) {
+        for (let i = 0; i < user.cart.length; i++) {
+          let item = await Product.findById(user.cart[i].product.toString());
+          cart.push(item);
+        }
+      }
+
+      let orders = [];
+      for (let i = 0; i < user.boughtproducts.length; i++) {
+        let item = await Product.findById(user.boughtproducts[i].product.toString());
+        orders.push(item);
+      }
+
+      const myprofile = {
+        profile: user,
+        orders: orders
+      }
+
       success = true;
-      return res.json({ success, user, userToken, status: 200 });
+      return res.json({ success, myprofile, cart, userToken, status: 200 });
     } catch (error) {
-      res.send({ error: "Internal Server Error", status: 500 });
+      res.send({ error: error.message, status: 500 });
     }
   }
 );
 
 // ROUTE 3: Get logged-in merchant details using GET. Login Required.
-router.post("/profile", fetchUser, async (req, res) => {
+router.get("/profile", fetchUser, async (req, res) => {
   let success = false;
   try {
     const userId = req.user.id;
     const user = await User.findById(userId);
+    let orders = [];
+    for (let i = 0; i < user.boughtproducts.length; i++) {
+      let item = await Product.findById(user.boughtproducts[i].product.toString());
+      orders.push(item);
+    }
+
+    const myprofile = {
+      profile: user,
+      orders: orders
+    }
+
     success = true;
-    return res.json({ success, user, status: 200 });
+    return res.json({ success, myprofile, status: 200 });
   } catch (error) {
     res.send({ error: "Internal Server Error", status: 500 });
   }
@@ -142,10 +190,10 @@ router.post("/profile", fetchUser, async (req, res) => {
 router.put("/editProfile", fetchUser, async (req, res) => {
   let success = false;
   try {
-    const merchantId = req.user.id;
-    let merchant = await Merchant.findById(merchantId);
-    let merchant1 = await Merchant.findOne({ email: req.body.email });
-    if (merchant1 && merchant1._id.toString() !== merchantId) {
+    const userId = req.user.id;
+    let user = await User.findById(userId);
+    let user1 = await User.findOne({ email: req.body.email });
+    if (user1 && user1._id.toString() !== userId) {
       success = false;
       return res.json({
         success,
@@ -154,71 +202,83 @@ router.put("/editProfile", fetchUser, async (req, res) => {
       });
     }
 
-    let merchant2 = await Merchant.findOne({ username: req.body.phone });
-    if (merchant2 && merchant2._id.toString() !== merchantId) {
+    let user2 = await User.findOne({ phone: req.body.phone });
+    if (user2 && user2._id.toString() !== userId) {
       success = false;
       return res.json({
         success,
-        error: "This username is already taken",
+        error: "This phone number is already taken",
         status: 400,
       });
     }
 
     let { name, email, phone, pincode, address } = req.body;
 
-    let newmerchant = {
-      name: merchant.name,
-      email: merchant.email,
-      phone: merchant.phone,
+    let newuser = {
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
       location: {
-        pincode: merchant.location.pincode,
-        address: merchant.location.address,
+        pincode: user.location.pincode,
+        address: user.location.address,
       },
     };
 
     if (req.body.name) {
-      newmerchant.name = name;
+      newuser.name = name;
     }
 
     if (req.body.email) {
-      newmerchant.email = email;
+      newuser.email = email;
     }
 
     if (req.body.phone) {
-      newmerchant.phone = phone;
+      newuser.phone = phone;
     }
 
     if (req.body.pincode) {
-      newmerchant.location = {
-          pincode: pincode,
-          address: merchant.location.address
+      newuser.location = {
+        pincode: pincode,
+        address: user.location.address
       };
     }
 
     if (req.body.address) {
-      newmerchant.location = {
-          pincode: merchant.location.pincode,
-          address: address
+      newuser.location = {
+        pincode: user.location.pincode,
+        address: address
       };
     }
 
-    if (!merchant) {
+    if (!user) {
       success = false;
       return res.send({ success, error: "Not Found", status: 404 });
     }
 
-    if (merchant._id.toString() !== req.user.id) {
+    if (user._id.toString() !== req.user.id) {
       success = false;
       return res.send({ success, error: "This is not allowed", status: 401 });
     }
 
-    merchant = await Merchant.findByIdAndUpdate(
-      merchantId,
-      { $set: newmerchant },
+    user = await User.findByIdAndUpdate(
+      userId,
+      { $set: newuser },
       { new: true }
     );
+
+    let orders = [];
+    for (let i = 0; i < user.boughtproducts.length; i++) {
+      let item = await Product.findById(user.boughtproducts[i].product.toString());
+      orders.push(item);
+    }
+
+    const myprofile = {
+      profile: user,
+      orders: orders
+    }
+
     success = true;
-    res.send({ success, merchant, status: 200 });
+    res.send({ success, myprofile, status: 200 });
   } catch (error) {
     success = false;
     res.send({ success, error: error.message, status: 500 });

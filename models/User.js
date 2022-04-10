@@ -52,8 +52,23 @@ const UserSchema = new Schema({
                 ref: 'product',
             },
             quantity: {
+                type: Number
+            }
+        }
+    ],
+    reviews: [
+        {
+            ratings: {
                 type: Number,
                 default: 0
+            },
+            review: {
+                type: String,
+                default: ""
+            },
+            product: {
+                type: Schema.Types.ObjectId,
+                ref: 'product'
             }
         }
     ]

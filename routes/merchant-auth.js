@@ -15,7 +15,7 @@ router.post(
   [
     body("name", "Name cannot be less than 5 characters!").isLength({ min: 5 }),
     body("email", "Enter a valid email!").isEmail(),
-    body("phone", "Enter a valid phone number!").isLength({ min: 10 }),
+    body("phone", "Enter a valid phone number!").isLength({ min: 10, max: 10 }),
     body("password", "Enter a valid password!")
       .isLength({ min: 8 })
       .matches(/^[a-zA-Z0-9!@#$%^&*]{6,16}$/),
@@ -156,12 +156,12 @@ router.put("/editProfile", fetchMerchant, async (req, res) => {
       });
     }
 
-    let merchant2 = await Merchant.findOne({ username: req.body.phone });
+    let merchant2 = await Merchant.findOne({ phone: req.body.phone });
     if (merchant2 && merchant2._id.toString() !== merchantId) {
       success = false;
       return res.json({
         success,
-        error: "This username is already taken",
+        error: "This phone number is already taken",
         status: 400,
       });
     }
