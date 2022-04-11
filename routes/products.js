@@ -73,10 +73,10 @@ router.post("/addproduct", [
                     }
                 }
                 // console.log(qty);
-                merchant = await Merchant.findByIdAndUpdate(merchantId, { $pull: {products: { product: products[i]._id.toString()} }});
-                merchant = await Merchant.findByIdAndUpdate(merchantId, { $push: {products: { product: products[i]._id.toString(), quantity: qty } }});
+                merchant = await Merchant.findByIdAndUpdate(merchantId, { $pull: { products: { product: products[i]._id.toString() } } });
+                merchant = await Merchant.findByIdAndUpdate(merchantId, { $push: { products: { product: products[i]._id.toString(), quantity: qty } } });
                 success = true;
-                return res.json({success, merchant, status: 200});
+                return res.json({ success, merchant, status: 200 });
             }
         }
 
@@ -140,15 +140,15 @@ router.put("/addtocart/:id", [
         }
 
         if (isProduct) {
-            for(let i=0; i<user.cart.length; i++) {
-                if(user.cart[i].product.toString() === productId) {
+            for (let i = 0; i < user.cart.length; i++) {
+                if (user.cart[i].product.toString() === productId) {
                     user.cart[i].quantity = latestqty;
                 }
             }
             user.save();
         }
         else {
-            user = await User.findByIdAndUpdate(userId, {$addToSet: {cart: {product: productId, quantity: latestqty} } }, {new: true});
+            user = await User.findByIdAndUpdate(userId, { $addToSet: { cart: { product: productId, quantity: latestqty } } }, { new: true });
         }
 
         let cart = [];
@@ -156,8 +156,15 @@ router.put("/addtocart/:id", [
             cart.push(await Product.findById(user.cart[i].product.toString()));
         }
 
+        let orders = [];
+        for (let i = 0; i < user.boughtproducts.length; i++) {
+            let item = await Product.findById(user.boughtproducts[i].product.toString());
+            orders.push(item);
+        }
+
         const myprofile = {
-            profile: user
+            profile: user,
+            orders: orders
         }
 
         success = true;
@@ -203,9 +210,9 @@ router.put("/removefromcart/:id", [
             }
         }
 
-        if(!isValid) {
+        if (!isValid) {
             success = false;
-            return res.json({success, error: "Product not present in cart!", status: 400})
+            return res.json({ success, error: "Product not present in cart!", status: 400 })
         }
 
         let latestqty = qty;
@@ -213,7 +220,7 @@ router.put("/removefromcart/:id", [
         for (let i = 0; i < user.cart.length; i++) {
             if (user.cart[i].product.toString() === productId) {
                 if (user.cart[i].quantity === qty) {
-                    user.cart = user.cart.filter((item)=> item.product.toString() !== productId);
+                    user.cart = user.cart.filter((item) => item.product.toString() !== productId);
                 }
                 else if (user.cart[i].quantity > qty) {
                     latestqty = user.cart[i].quantity - qty;
@@ -232,8 +239,15 @@ router.put("/removefromcart/:id", [
             cart.push(await Product.findById(user.cart[i].product.toString()));
         }
 
+        let orders = [];
+        for (let i = 0; i < user.boughtproducts.length; i++) {
+            let item = await Product.findById(user.boughtproducts[i].product.toString());
+            orders.push(item);
+        }
+
         const myprofile = {
-            profile: user
+            profile: user,
+            orders: orders
         }
 
         success = true;
@@ -265,12 +279,12 @@ router.put("/buyproduct", [
     }
 
     try {
-        if(cart.length === 0) {
+        if (cart.length === 0) {
             success = false;
-            return res.json({success, error: "Your cart is empty!", status: 400})
+            return res.json({ success, error: "Your cart is empty!", status: 400 })
         }
 
-        for(let i=0; i<cart.length; i++) {
+        for (let i = 0; i < cart.length; i++) {
             let productId = cart[i].product.toString();
 
             product = await Product.findById(productId);
@@ -280,7 +294,7 @@ router.put("/buyproduct", [
             }
 
             merchant = await Merchant.findById(product.merchant.merchantId.toString());
-    
+
             let productQuantity = 0;
             let merchantEarning = 0;
 
@@ -294,13 +308,13 @@ router.put("/buyproduct", [
                     merchantEarning = merchant.earnedmoney + (product.price * cart[i].quantity);
                 }
             }
-    
-            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $pull: { products: { product: productId } } }, {new: true});
-            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $push: { products: { product: productId, quantity: productQuantity } } }, {new: true});
-            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $push: { soldproducts: { location: user.location, user: userId, product: productId, quantity: cart[i].quantity } } }, {new: true} );
-            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { earnedmoney: merchantEarning }, {new: true});
-            user = await User.findByIdAndUpdate(userId, { $push: { boughtproducts: { merchant: product.merchant.merchantId.toString(), product: productId, quantity: cart[i].quantity } } }, {new: true});
-    
+
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $pull: { products: { product: productId } } }, { new: true });
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $push: { products: { product: productId, quantity: productQuantity } } }, { new: true });
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { $push: { soldproducts: { location: user.location, user: userId, product: productId, quantity: cart[i].quantity } } }, { new: true });
+            merchant = await Merchant.findByIdAndUpdate(product.merchant.merchantId.toString(), { earnedmoney: merchantEarning }, { new: true });
+            user = await User.findByIdAndUpdate(userId, { $push: { boughtproducts: { merchant: product.merchant.merchantId.toString(), product: productId, quantity: cart[i].quantity } } }, { new: true });
+
             // let latestqty = cart[i].quantity;
             for (let k = 0; k < user.cart.length; k++) {
                 if (user.cart[k].product.toString() === productId) {
@@ -309,7 +323,7 @@ router.put("/buyproduct", [
                         return res.json({ success, error: "Invalid Request!", status: 400 });
                     }
                     else if (user.cart[k].quantity === cart[i].quantity) {
-                        user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product: productId} } }, {new: true});
+                        user = await User.findByIdAndUpdate(userId, { $pull: { cart: { product: productId } } }, { new: true });
                     }
                     // else {
                     //     latestqty = user.cart[k].quantity - cart[i].quantity;
@@ -318,7 +332,7 @@ router.put("/buyproduct", [
                     // }
                 }
             }
-            
+
         }
 
         let mycart = [];
@@ -326,10 +340,17 @@ router.put("/buyproduct", [
             mycart.push(await Product.findById(user.cart[i].product.toString()));
         }
 
-        const myprofile = {
-            profile: user
+        let orders = [];
+        for (let i = 0; i < user.boughtproducts.length; i++) {
+            let item = await Product.findById(user.boughtproducts[i].product.toString());
+            orders.push(item);
         }
-        
+
+        const myprofile = {
+            profile: user,
+            orders: orders
+        }
+
         success = true;
         return res.json({ success, product, myprofile, mycart, merchant, status: 200 });
 
@@ -355,8 +376,8 @@ router.delete("/deleteproduct/:id", fetchMerchant, async (req, res) => {
             return res.json({ success, error: "This is not allowed", status: 401 })
         }
 
-        const deletedProduct = await Product.findByIdAndDelete(productId);
-        const myMerchant = await Merchant.findByIdAndUpdate({ _id: req.user.id }, { $pull: { products: { product: productId } } });
+        const deletedProduct = await Product.findByIdAndDelete(productId, {new: true});
+        const myMerchant = await Merchant.findByIdAndUpdate(req.user.id, { $pull: { products: { product: productId } } }, {new: true});
         const filteredProducts = await Product.find({ merchant: req.user.id });
 
         success = true;
@@ -427,6 +448,18 @@ router.put("/addreview/:id", [
             return res.json({ success, error: "Not Found", status: 404 });
         }
 
+        let isBought = false;
+        for(let i=0; i<user.boughtproducts.length; i++) {
+            if(user.boughtproducts[i],product.toString() === productId) {
+                isBought = true;
+            }
+        }
+
+        if(!isBought) {
+            success = false;
+            return res.json({success, error: "You have not purchased the product yet!", status: 400})
+        }
+
         const myreview = {
             ratings: rating,
             comments: review,
@@ -436,11 +469,18 @@ router.put("/addreview/:id", [
             }
         }
 
-        product = await Product.findByIdAndUpdate(productId, { $push: { review: myreview } });
-        user = await User.findByIdAndUpdate(userId, { reviews: { ratings: rating, review: review, product: productId } });
+        product = await Product.findByIdAndUpdate(productId, { $push: { review: myreview } }, {new: true});
+        user = await User.findByIdAndUpdate(userId, {$push: { reviews: { ratings: rating, review: review, product: productId } }}, {new: true});
+
+        let orders = [];
+        for (let i = 0; i < user.boughtproducts.length; i++) {
+            let item = await Product.findById(user.boughtproducts[i].product.toString());
+            orders.push(item);
+        }
 
         const myprofile = {
-            profile: user
+            profile: user,
+            orders: orders
         }
 
         success = true;

@@ -179,8 +179,13 @@ router.get("/profile", fetchUser, async (req, res) => {
       orders: orders
     }
 
+    let cart = [];
+    for (let i = 0; i < user.cart.length; i++) {
+      cart.push(await Product.findById(user.cart[i].product.toString()));
+    }
+
     success = true;
-    return res.json({ success, myprofile, status: 200 });
+    return res.json({ success, myprofile, cart, status: 200 });
   } catch (error) {
     res.send({ error: "Internal Server Error", status: 500 });
   }
