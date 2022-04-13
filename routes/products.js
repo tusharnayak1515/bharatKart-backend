@@ -8,6 +8,7 @@ const fetchUser = require("../middlewares/fetchUser");
 const Merchant = require("../models/Merchant");
 const Product = require("../models/Products");
 const User = require("../models/User");
+const Review = require("../models/Review");
 
 const router = express.Router();
 
@@ -27,12 +28,28 @@ router.get("/products", async (req, res) => {
     }
 });
 
-// ROUTE 2: Add products using POST. Require Login.
+// ROUTE 2: Fetch all products using GET. Doesn't Require Login.
+router.get("/products/:category", async (req, res) => {
+    let success = false;
+    const category = req.params.category;
+    try {
+        const products = await Product.find({ category: category });
+        success = true;
+        return res.json({ success, products, status: 200 });
+    } catch (error) {
+        success = false;
+        return res.send({ success, error: error.message, status: 500 });
+    }
+});
+
+// ROUTE 3: Add products using POST. Require Login.
 router.post("/addproduct", [
     body("name", "Name must be more than 4 characters").isLength({ min: 4 }),
+    body("category", "Category must be more than 2 characters").isLength({ min: 2 }),
     body("description", "Description must be more than 10 characters").isLength({ min: 10 }),
     body("image", "Image is compulsory").exists(),
     body("price", "Price is compulsory").exists(),
+    body("quantity", "You can add minimum 1 product!").isFloat({ min: 1 })
 ], fetchMerchant, async (req, res) => {
     let success = false;
     const errors = validationResult(req);
@@ -40,7 +57,7 @@ router.post("/addproduct", [
         success = false;
         return res.json({ success, error: errors.array()[0].msg, status: 400 })
     }
-    const { name, description, image, price, quantity } = req.body;
+    const { name, category, description, image, price, quantity } = req.body;
     try {
         const merchantId = req.user.id;
         let merchant = await Merchant.findById(merchantId);
@@ -82,6 +99,7 @@ router.post("/addproduct", [
 
         let myproduct = await new Product({
             name: name,
+            category: category,
             description: description,
             image: image,
             price: price,
@@ -93,15 +111,26 @@ router.post("/addproduct", [
 
         const product = await myproduct.save();
         merchant = await Merchant.findByIdAndUpdate(merchantId, { $push: { products: { product, quantity } } });
+
+        let myreviews = [];
+        for(let i=0; i<product.review.length; i++) {
+            myreviews.push(await Review.findById(product.review[i].toString()))
+        }
+
+        const myProduct = {
+            product: product,
+            reviews: myreviews
+        }
+
         success = true;
-        return res.json({ success, product, merchant, status: 200 });
+        return res.json({ success, myProduct, merchant, status: 200 });
     } catch (error) {
         success = false;
         res.send({ success, error: error.message, status: 500 });
     }
 });
 
-// ROUTE 3: Add products in cart using PUT. Require Login.
+// ROUTE 4: Add products in cart using PUT. Require Login.
 router.put("/addtocart/:id", [
     body("qty", "Quantity can be minimum 1!").isFloat({ min: 1 })
 ], fetchUser, async (req, res) => {
@@ -162,20 +191,37 @@ router.put("/addtocart/:id", [
             orders.push(item);
         }
 
+        let reviews = [];
+        for (let i = 0; i < user.reviews.length; i++) {
+            let item = await Review.findById(user.reviews[i].toString());
+            reviews.push(item);
+        }
+
         const myprofile = {
             profile: user,
-            orders: orders
+            orders: orders,
+            reviews: reviews
+        }
+
+        let myreviews = [];
+        for(let i=0; i<product.review.length; i++) {
+            myreviews.push(await Review.findById(product.review[i].toString()))
+        }
+
+        const myProduct = {
+            product: product,
+            reviews: myreviews
         }
 
         success = true;
-        return res.json({ success, product, cart, myprofile, status: 200 });
+        return res.json({ success, myProduct, cart, myprofile, status: 200 });
     } catch (error) {
         success = false;
         res.send({ success, error: error.message, status: 500 });
     }
 });
 
-// ROUTE 4: Remove products from cart using PUT. Require Login.
+// ROUTE 5: Remove products from cart using PUT. Require Login.
 router.put("/removefromcart/:id", [
     body("qty", "Quantity can be minimum 1!").exists()
 ], fetchUser, async (req, res) => {
@@ -245,20 +291,37 @@ router.put("/removefromcart/:id", [
             orders.push(item);
         }
 
+        let reviews = [];
+        for (let i = 0; i < user.reviews.length; i++) {
+            let item = await Review.findById(user.reviews[i].toString());
+            reviews.push(item);
+        }
+
         const myprofile = {
             profile: user,
-            orders: orders
+            orders: orders,
+            reviews: reviews
+        }
+
+        let myreviews = [];
+        for(let i=0; i<product.review.length; i++) {
+            myreviews.push(await Review.findById(product.review[i].toString()))
+        }
+
+        const myProduct = {
+            product: product,
+            reviews: myreviews
         }
 
         success = true;
-        return res.json({ success, product, cart, myprofile, status: 200 });
+        return res.json({ success, myProduct, cart, myprofile, status: 200 });
     } catch (error) {
         success = false;
         res.send({ success, error: error.message, status: 500 });
     }
 });
 
-// ROUTE 5: Buy products using PUT. Require Login.
+// ROUTE 6: Buy products using PUT. Require Login.
 router.put("/buyproduct", [
     body("cart", "Your cart is empty!").isArray().notEmpty()
 ], fetchUser, async (req, res) => {
@@ -268,6 +331,7 @@ router.put("/buyproduct", [
         success = false;
         return res.json({ success, error: errors.array()[0].msg, status: 400 })
     }
+
     const cart = req.body.cart;
     const userId = req.user.id;
     let product;
@@ -282,6 +346,19 @@ router.put("/buyproduct", [
         if (cart.length === 0) {
             success = false;
             return res.json({ success, error: "Your cart is empty!", status: 400 })
+        }
+
+        let count = 0;
+
+        for (let i = 0; i < user.cart.length; i++) {
+            if ((cart[i].product === user.cart[i].product.toString()) && (cart[i].quantity === user.cart[i].quantity)) {
+                count += 1;
+            }
+        }
+
+        if (count < user.cart.length) {
+            success = false;
+            return res.json({ success, error: "The products you requested to buy are not in your cart!", status: 400 });
         }
 
         for (let i = 0; i < cart.length; i++) {
@@ -346,13 +423,30 @@ router.put("/buyproduct", [
             orders.push(item);
         }
 
+        let reviews = [];
+        for (let i = 0; i < user.reviews.length; i++) {
+            let item = await Review.findById(user.reviews[i].toString());
+            reviews.push(item);
+        }
+
         const myprofile = {
             profile: user,
-            orders: orders
+            orders: orders,
+            reviews: reviews
+        }
+
+        let myreviews = [];
+        for(let i=0; i<product.review.length; i++) {
+            myreviews.push(await Review.findById(product.review[i].toString()))
+        }
+
+        const myProduct = {
+            product: product,
+            reviews: myreviews
         }
 
         success = true;
-        return res.json({ success, product, myprofile, mycart, merchant, status: 200 });
+        return res.json({ success, myProduct, myprofile, mycart, merchant, status: 200 });
 
     } catch (error) {
         success = false;
@@ -360,7 +454,7 @@ router.put("/buyproduct", [
     }
 });
 
-// Route 6: Delete a product using DELETE. Merchant Login Required.
+// Route 7: Delete a product using DELETE. Merchant Login Required.
 router.delete("/deleteproduct/:id", fetchMerchant, async (req, res) => {
     let success = false;
     const productId = req.params.id;
@@ -371,17 +465,27 @@ router.delete("/deleteproduct/:id", fetchMerchant, async (req, res) => {
             return res.json({ success, error: "Product not found", status: 404 })
         }
 
-        if (targetProduct.merchant.toString() !== req.user.id) {
+        if (targetProduct.merchant.merchantId.toString() !== req.user.id) {
             success = false;
             return res.json({ success, error: "This is not allowed", status: 401 })
         }
 
-        const deletedProduct = await Product.findByIdAndDelete(productId, {new: true});
-        const myMerchant = await Merchant.findByIdAndUpdate(req.user.id, { $pull: { products: { product: productId } } }, {new: true});
+        const deletedProduct = await Product.findByIdAndDelete(productId, { new: true });
+        const myMerchant = await Merchant.findByIdAndUpdate(req.user.id, { $pull: { products: { product: productId } } }, { new: true });
         const filteredProducts = await Product.find({ merchant: req.user.id });
 
+        let reviews = [];
+        for(let i=0; i<filteredProducts.review.length; i++) {
+            reviews.push(await Review.findById(filteredProducts.review[i].toString()))
+        }
+
+        const myProduct = {
+            product: filteredProducts,
+            reviews: reviews
+        }
+
         success = true;
-        return res.json({ success, filteredProducts, myMerchant, status: 200 });
+        return res.json({ success, myProduct, myMerchant, status: 200 });
 
     }
     catch (error) {
@@ -389,7 +493,7 @@ router.delete("/deleteproduct/:id", fetchMerchant, async (req, res) => {
     }
 });
 
-// ROUTE 7: Fetch a particular product using GET. Doesn't Require Login.
+// ROUTE 8: Fetch a particular product using GET. Doesn't Require Login.
 router.get("/product/:id", async (req, res) => {
     const productId = req.params.id;
     let success = false;
@@ -401,90 +505,31 @@ router.get("/product/:id", async (req, res) => {
         }
 
         const merchant = await Merchant.findById(product.merchant.merchantId.toString());
+        if (!merchant) {
+            success = false;
+            return res.json({ success, error: "Merchant Not Found", status: 404 });
+        }
+
         let productQuantity;
         for (let i = 0; i < merchant.products.length; i++) {
             if (merchant.products[i].product.toString() === productId) {
                 productQuantity = merchant.products[i].quantity;
             }
         }
-        if (!merchant) {
-            success = false;
-            return res.json({ success, error: "Not Found", status: 404 });
+
+        let reviews = [];
+        for(let i=0; i<product.review.length; i++) {
+            reviews.push(await Review.findById(product.review[i].toString()))
+        }
+
+        const myProduct = {
+            product: product,
+            reviews: reviews
         }
 
         const merchantName = merchant.name;
         success = true;
-        return res.json({ success, product, merchantName, productQuantity, status: 200 });
-    } catch (error) {
-        success = false;
-        res.send({ success, error: error.message, status: 500 });
-    }
-});
-
-// ROUTE 8: Add product review using PUT. Require Login.
-router.put("/addreview/:id", [
-    body("rating", "You have to give minimum 1 star and maximum 5 star ratings!").isFloat({ min: 1, max: 5 }),
-    body("review", "You can write review of minimum 5 characters!").isLength({ min: 5 })
-], fetchUser, async (req, res) => {
-    const productId = req.params.id;
-    const { rating, review } = req.body;
-    let success = false;
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        success = false;
-        return res.json({ success, error: errors.array()[0].msg, status: 400 })
-    }
-    try {
-        const userId = req.user.id;
-        let user = await User.findById(userId);
-        if (!user) {
-            success = false;
-            return res.json({ success, error: "You need to login first!", status: 404 });
-        }
-
-        let product = await Product.findById(productId);
-        if (!product) {
-            success = false;
-            return res.json({ success, error: "Not Found", status: 404 });
-        }
-
-        let isBought = false;
-        for(let i=0; i<user.boughtproducts.length; i++) {
-            if(user.boughtproducts[i],product.toString() === productId) {
-                isBought = true;
-            }
-        }
-
-        if(!isBought) {
-            success = false;
-            return res.json({success, error: "You have not purchased the product yet!", status: 400})
-        }
-
-        const myreview = {
-            ratings: rating,
-            comments: review,
-            user: {
-                username: user.name,
-                userId: userId
-            }
-        }
-
-        product = await Product.findByIdAndUpdate(productId, { $push: { review: myreview } }, {new: true});
-        user = await User.findByIdAndUpdate(userId, {$push: { reviews: { ratings: rating, review: review, product: productId } }}, {new: true});
-
-        let orders = [];
-        for (let i = 0; i < user.boughtproducts.length; i++) {
-            let item = await Product.findById(user.boughtproducts[i].product.toString());
-            orders.push(item);
-        }
-
-        const myprofile = {
-            profile: user,
-            orders: orders
-        }
-
-        success = true;
-        return res.json({ success, product, myprofile, status: 200 });
+        return res.json({ success, myProduct, merchantName, productQuantity, status: 200 });
     } catch (error) {
         success = false;
         res.send({ success, error: error.message, status: 500 });

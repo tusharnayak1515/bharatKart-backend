@@ -14,6 +14,7 @@ connectToMongo();
 app.use('/api/merchant-auth', require('./routes/merchant-auth'));
 app.use('/api/user-auth', require('./routes/user-auth'));
 app.use('/api/products', require('./routes/products'));
+app.use('/api/reviews', require('./routes/reviews'));
 
 app.listen(port,()=> {
     console.log(`Server started successfully at port ${port}`);

@@ -7,6 +7,10 @@ const ProductSchema = new Schema({
         type: String,
         required: true
     },
+    category: {
+        type: String,
+        required: true
+    },
     description: {
         type: String,
         required: true
@@ -21,24 +25,8 @@ const ProductSchema = new Schema({
     },
     review: [
         {
-            ratings: {
-                type: Number,
-                default: 0
-            },
-            comments: {
-                type: String,
-                default: ""
-            },
-            user: {
-                username: {
-                    type: String,
-                    default: ""
-                },
-                userId: {
-                    type: Schema.Types.ObjectId,
-                    ref: 'user'
-                }
-            }
+            type: Schema.Types.ObjectId,
+            ref: 'review'
         }
     ],
     date: {

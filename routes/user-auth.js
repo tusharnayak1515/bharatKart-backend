@@ -5,6 +5,7 @@ const jwt = require("jsonwebtoken");
 const fetchUser = require("../middlewares/fetchUser");
 const User = require("../models/User");
 const Product = require("../models/Products");
+const Review = require("../models/Review");
 
 const router = express.Router();
 
@@ -82,9 +83,16 @@ router.post(
         orders.push(item);
       }
 
+      let reviews = [];
+      for (let i = 0; i < user.reviews.length; i++) {
+        let item = await Review.findById(user.reviews[i].toString());
+        reviews.push(item);
+      }
+
       const myprofile = {
         profile: user,
-        orders: orders
+        orders: orders,
+        reviews: reviews
       }
 
       success = true;
@@ -149,9 +157,16 @@ router.post(
         orders.push(item);
       }
 
+      let reviews = [];
+      for (let i = 0; i < user.reviews.length; i++) {
+        let item = await Review.findById(user.reviews[i].toString());
+        reviews.push(item);
+      }
+
       const myprofile = {
         profile: user,
-        orders: orders
+        orders: orders,
+        reviews: reviews
       }
 
       success = true;
@@ -168,15 +183,23 @@ router.get("/profile", fetchUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await User.findById(userId);
+
     let orders = [];
     for (let i = 0; i < user.boughtproducts.length; i++) {
       let item = await Product.findById(user.boughtproducts[i].product.toString());
       orders.push(item);
     }
 
+    let reviews = [];
+    for (let i = 0; i < user.reviews.length; i++) {
+      let item = await Review.findById(user.reviews[i].toString());
+      reviews.push(item);
+    }
+
     const myprofile = {
       profile: user,
-      orders: orders
+      orders: orders,
+      reviews: reviews
     }
 
     let cart = [];
@@ -277,9 +300,16 @@ router.put("/editProfile", fetchUser, async (req, res) => {
       orders.push(item);
     }
 
+    let reviews = [];
+    for (let i = 0; i < user.reviews.length; i++) {
+      let item = await Review.findById(user.reviews[i].toString());
+      reviews.push(item);
+    }
+
     const myprofile = {
       profile: user,
-      orders: orders
+      orders: orders,
+      reviews: reviews
     }
 
     success = true;
