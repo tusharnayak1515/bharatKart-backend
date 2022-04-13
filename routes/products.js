@@ -470,8 +470,21 @@ router.delete("/deleteproduct/:id", fetchMerchant, async (req, res) => {
             return res.json({ success, error: "This is not allowed", status: 401 })
         }
 
+        let users = await User.find();
+        for(let i=0; i<users.length; i++) {
+            for(let j=0; j<users[i].cart.length; i++) {
+                if(users[i].cart[j].product.toString() === productId) {
+                    let userId = users[i]._id.toString();
+                    let user = await User.findById(userId);
+                    user = await User.findByIdAndUpdate(userId, {$pull: {cart: {product: productId}}}, {new: true});
+                    user = await User.findByIdAndUpdate(userId, {$pull: {boughtproducts: {product: productId}}}, {new: true});
+                }
+            }
+        }
+
         const deletedProduct = await Product.findByIdAndDelete(productId, { new: true });
-        const myMerchant = await Merchant.findByIdAndUpdate(req.user.id, { $pull: { products: { product: productId } } }, { new: true });
+        let myMerchant = await Merchant.findByIdAndUpdate(req.user.id, { $pull: { products: { product: productId } } }, { new: true });
+        myMerchant = await Merchant.findByIdAndUpdate(req.user.id, { $pull: { soldproducts: { product: productId } } }, { new: true });
         const filteredProducts = await Product.find({ merchant: req.user.id });
 
         let reviews = [];
