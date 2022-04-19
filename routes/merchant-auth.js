@@ -4,6 +4,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const fetchMerchant = require("../middlewares/fetchMerchant");
 const Merchant = require("../models/Merchant");
+const Product = require("../models/Products");
 
 const router = express.Router();
 
@@ -68,16 +69,29 @@ router.post(
         },
       });
       const merchant = newMerchant.save();
+
       const data = {
         user: {
           id: merchant.id,
         },
       };
       const merchantToken = jwt.sign(data, secret);
+
+      let soldproducts = [];
+      for (let i = 0; i < merchant.soldproducts.length; i++) {
+        let item = await Product.findById(merchant.soldproducts[i].product.toString());
+        soldproducts.push(item);
+      }
+
+      const myprofile = {
+        profile: merchant,
+        soldproducts: soldproducts,
+      }
+
       success = true;
-      return res.json({ success, merchant, merchantToken, status: 200 });
+      return res.json({ success, myprofile, merchantToken, status: 200 });
     } catch (error) {
-      res.send({ error: "Internal Server Error", status: 500 });
+      res.send({ error: error.message, status: 500 });
     }
   }
 );
@@ -119,10 +133,22 @@ router.post(
         },
       };
       const merchantToken = jwt.sign(data, secret);
+
+      let soldproducts = [];
+      for (let i = 0; i < merchant.soldproducts.length; i++) {
+        let item = await Product.findById(merchant.soldproducts[i].product.toString());
+        soldproducts.push(item);
+      }
+
+      const myprofile = {
+        profile: merchant,
+        soldproducts: soldproducts,
+      }
+
       success = true;
-      return res.json({ success, merchant, merchantToken, status: 200 });
+      return res.json({ success, myprofile, merchantToken, status: 200 });
     } catch (error) {
-      res.send({ error: "Internal Server Error", status: 500 });
+      res.send({ error: error.message, status: 500 });
     }
   }
 );
@@ -133,10 +159,22 @@ router.post("/profile", fetchMerchant, async (req, res) => {
   try {
     const merchantId = req.user.id;
     const merchant = await Merchant.findById(merchantId);
+    
+    let soldproducts = [];
+    for (let i = 0; i < merchant.soldproducts.length; i++) {
+      let item = await Product.findById(merchant.soldproducts[i].product.toString());
+      soldproducts.push(item);
+    }
+
+    const myprofile = {
+      profile: merchant,
+      soldproducts: soldproducts,
+    }
+
     success = true;
-    return res.json({ success, merchant, status: 200 });
+    return res.json({ success, myprofile, status: 200 });
   } catch (error) {
-    res.send({ error: "Internal Server Error", status: 500 });
+    res.send({ error: error.message, status: 500 });
   }
 });
 
@@ -192,15 +230,15 @@ router.put("/editProfile", fetchMerchant, async (req, res) => {
 
     if (req.body.pincode) {
       newmerchant.location = {
-          pincode: pincode,
-          address: merchant.location.address
+        pincode: pincode,
+        address: merchant.location.address
       };
     }
 
     if (req.body.address) {
       newmerchant.location = {
-          pincode: merchant.location.pincode,
-          address: address
+        pincode: merchant.location.pincode,
+        address: address
       };
     }
 
@@ -219,8 +257,20 @@ router.put("/editProfile", fetchMerchant, async (req, res) => {
       { $set: newmerchant },
       { new: true }
     );
+
+    let soldproducts = [];
+    for (let i = 0; i < merchant.soldproducts.length; i++) {
+      let item = await Product.findById(merchant.soldproducts[i].product.toString());
+      soldproducts.push(item);
+    }
+
+    const myprofile = {
+      profile: merchant,
+      soldproducts: soldproducts,
+    }
+
     success = true;
-    res.send({ success, merchant, status: 200 });
+    res.send({ success, myprofile, status: 200 });
   } catch (error) {
     success = false;
     res.send({ success, error: error.message, status: 500 });

@@ -8,8 +8,22 @@ const ProductSchema = new Schema({
         required: true
     },
     category: {
+        main: {
+            type: String,
+            default: "Others"
+        },
+        sub: {
+            type: String,
+            default: "Others"
+        },
+        gender: {
+            type: String,
+            default: "Unisex"
+        }
+    },
+    brand: {
         type: String,
-        required: true
+        default: "Bharatkart"
     },
     description: {
         type: String,
